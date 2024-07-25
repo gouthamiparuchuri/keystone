@@ -15,7 +15,7 @@ const app = express();
 app.use(bodyParser.json());
 var dir = path.join(__dirname, 'assets/images');
 
-const apiKey = "sk-proj-zwPO5fdqRAyu8hIpgOD3T3BlbkFJOIRi7uSeJKSHAc9juFoz";
+// const apiKey = "sk-proj-zwPO5fdqRAyu8hIpgOD3T3BlbkFJOIRi7uSeJKSHAc9juFoz-keystone";
   const openai = new OpenAI({
     apiKey,
   });
