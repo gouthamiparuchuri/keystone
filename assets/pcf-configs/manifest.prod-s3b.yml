@@ -1,0 +1,17 @@
+applications:
+- name: ma-orders-prod
+  buildpacks: 
+  - dicf_dotnet_core_buildpack_latest
+  disk_quota: 1024MB
+  instances: 16
+  memory: 2048MB
+  stack: cflinuxfs4
+  health-check-type: http
+  health-check-http-endpoint: /api/app/ping
+  env:
+    ASPNETCORE_ENVIRONMENT: prod
+    BP_DEBUG: true
+    
+    dell:vault:auth:rolename: myaccount-approle-ss2
+    dell:vault:auth:mountpoint: cf_ss2
+    PCF_DC: ss2

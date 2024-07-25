@@ -1,0 +1,11 @@
+applications:
+- name: ma-orders-perf
+  buildpack: dicf_dotnet_core_buildpack_latest 
+  disk_quota: 1024MB
+  instances: 1
+  memory: 1024MB
+  stack: cflinuxfs4
+  health-check-type: http
+  health-check-http-endpoint: /api/app/ping
+  env:
+    ASPNETCORE_ENVIRONMENT: perf

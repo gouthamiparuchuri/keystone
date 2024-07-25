@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dell MFE</title>
+    <style>
+        body {
+            /*font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;*/
+            /*display: flex;*/
+            /*justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f5f5f5;*/
+            /*font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;*/
+            /*display: flex;*/
+            /*justify-content: space-between;
+                align-items: center;
+                height: 100vh;
+                background-color: #f4f4f4;*/
+
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+
+        .chat-container {
+            /*  width: 400px;
+                height: 600px;
+                background-color: #fff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;*/
+
+            position: absolute;
+            /*bottom: 40px;*/
+            /*right: 90px;*/
+            top: 120px;
+            left: 23%;
+            z-index: 9998;
+            width: 400px;
+            height: 550px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container2 {
+            /*  width: 400px;
+        height: 600px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;*/
+
+            position: absolute;
+            /*bottom: 40px;*/
+            /*right: 90px;*/
+            top: 120px;
+            right: 23%;
+            z-index: 9998;
+            width: 400px;
+            height: 550px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background-color: #007db8;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            animation: slide-down 0.5s ease-out;
+        }
+
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            background-color: #fafafa;
+        }
+
+            .chat-box .message {
+                margin: 10px 0;
+                padding: 10px;
+                border-radius: 8px;
+                max-width: 70%;
+                word-wrap: break-word;
+                animation: fade-in 0.5s ease-in-out;
+            }
+
+                .chat-box .message.user {
+                    background-color: #007db8;
+                    color: white;
+                    align-self: flex-end;
+                    border-bottom-right-radius: 0;
+                }
+
+                .chat-box .message.bot {
+                    background-color: #e9ecef;
+                    color: black;
+                    align-self: flex-start;
+                    border-bottom-left-radius: 0;
+                }
+
+        .options-container {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            max-height: 150px;
+            overflow-y: auto;
+            animation: slide-up 0.5s ease-out;
+        }
+
+        .option-button {
+            background-color: #007db8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            flex: 1 1 40%;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+            .option-button:hover {
+                background-color: #005f8a;
+                transform: scale(1.05);
+            }
+
+        .input-container {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            animation: slide-up 0.5s ease-out;
+            background-color: #fafafa;
+        }
+
+        .user-input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            margin-right: 10px;
+        }
+
+        .send-button {
+            background-color: #007db8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+            .send-button:hover {
+                background-color: #005f8a;
+                transform: scale(1.05);
+            }
+
+        /* Animations */
+        @keyframes slide-down {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slide-up {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        body {
+            /*background-image: url('dellMarketPlace.png');*/
+            /*background-image: url('dellCampus.jpeg');*/
+            /*background-image: url('codeImg.jpg');*/
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-size: cover;
+            background-color: #00468B;
+            /*background-color: #F5F6F7;*/
+        }
+
+        .chatbot-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+
+        .chatbot-button {
+            background-color: #007db8;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            padding: 15px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+            .chatbot-button:hover {
+                background-color: #005f8a;
+                transform: scale(1.05);
+            }
+
+        .header {
+            padding: 35px;
+            text-align: center;
+            /*background: #1abc9c;*/
+            color: white;
+            font-size: 30px;
+            background-image: url("./dellTech.png");
+            background-repeat: no-repeat;
+            background-size: cover;
+        }
+        /* Page Content */
+        .content {
+            padding: 20px;
+        }
+
+
+        .card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 40%;
+            padding: 20px;
+            margin: 20px;
+            height: 70%;
+            text-align: center;
+        }
+
+        .left-card {
+            margin-left: 5%;
+        }
+
+        .right-card {
+            margin-right: 5%;
+        }
+
+
+        #toggleButton {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+            #toggleButton:hover {
+                background-color: #0056b3;
+            }
+
+        .sidebar {
+            height: 100%;
+            width: 280px;
+            position: absolute;
+            top: 0;
+            right: -250px; /* Initially hidden off-screen */
+            background-color: white;
+            color: white;
+            transition: right 0.3s;
+            padding: 20px;
+            display: none; /* Completely hide the sidebar */
+            background-image: url("./dellFileStruct.png");
+            background-repeat: no-repeat;
+            /*background-attachment: fixed;*/
+            background-size: cover;
+            overflow-y: auto; /* Enable vertical scrolling */
+        }
+
+            .sidebar.show {
+                display: block; /* Display the sidebar when the button is clicked */
+                right: 0;
+            }
+    </style>
+
+</head>
+<body>
+    <div class="header">
+    </div>
+
+    <!--<div class="chatbot-container">
+        <button class="chatbot-button" id="chatbot-button">Chat</button>
+    </div>-->
+    <!--<div class="card left-card">
+
+     </div>
+
+    <div class="card right-card">
+
+    </div>-->
+    <div id="sidebar" class="sidebar">
+        <!--<p>Sidebar content here</p>-->
+        <div>
+
+        </div>
+    </div>
+    <div id="chat-container" class="chat-container" style="display:flex">
+        <div class="chat-header" style="text-align:center">
+            Dell Chatbot <div style="font-size:x-small">(Powered by Sapphire) </div>
+        </div>
+        <div class="chat-box" id="chat-box"></div>
+        <div id="input-container" class="input-container">
+            <input type="text" id="user-input" placeholder="Type your answer here..." class="user-input">
+            <button id="send-button" class="send-button">Send</button>
+        </div>
+        <div id="options-container" class="options-container"></div>
+    </div>
+    <div class="chat-container2" style="display:flex">
+        <div style="margin: 20px">
+            <h4>Download this code and utilize these offers to create your component.</h4>
+            <ul>
+                <li>Dynamic loading of the remote modules</li>
+                <li>Dynamic consumption </li>
+            </ul>
+
+            <h4>Standards/Features Available:</h4>
+
+            <ol>
+                <li>Routing setup</li>
+                <li>Prettier configuration</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatBox = document.getElementById('chat-box');
+            const optionsContainer = document.getElementById('options-container');
+            const inputContainer = document.getElementById('input-container');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const FirstIntro = "Welcome to Dell's MFE Chatbot - What you wanna do ?";
+            const MFEIntro = "Welcome to Dell's MFE Chatbot - your expert companion in building the perfect Multi-Functional Environment for your Dell systems! Let's optimize your workspace, enhance performance, and explore the latest innovations together.\n Let's Start!!!";
+            const chatbotButton = document.getElementById('chatbot-button');
+            const chatContainer = document.getElementById('chat-container');
+            var currentQuestion;
+            var previewButtonId = 7;
+
+            var AIMODE = 0;
+            const questions = [
+                {
+                    id: 1,
+                    text: FirstIntro,
+                    options: ['Create MFE', 'Chat with BOT']
+                },
+                {
+                    id: 2,
+                    text: MFEIntro,
+                    options: ['Get Started']
+                },
+                {
+                    id: 'APPNAME',
+                    text: 'What should be your MFE name?',
+                    options: null // User can type the answer
+                },
+                {
+                    id: 'CSS',
+                    text: 'Which CSS style it should have?',
+                    options: ['css', 'scss'] // Predefined options
+                },
+                {
+                    id: 'ROUTE',
+                    text: 'Do you want to enable routing ?',
+                    options: ['Yes', 'No'] // User can type the answer
+                },
+                {
+                    id: 'FRAME',
+                    text: 'In which framework you want to continue?',
+                    options: ['Angular', 'React', 'Vue'] // User can type the answer
+                },
+                {
+                    id: 'COMP',
+                    text: 'Last question, Do you want to add any Pre-exising component?',
+                    options: ['Accordian', 'Table', 'Cards', 'Tabs', 'No'] // User can type the answer
+                },
+                {
+                    id: 7,
+                    text: 'Thank you for your answers,what you wanna do further?',
+                    options: ['Download', 'Preview'] // User can type the answer
+                    //options: ['Download'] // User can type the answer
+                }
+            ];
+
+            var answers = [];
+
+
+            let currentQuestionIndex = 0;
+
+            function displayMessage(message, sender) {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${sender}`;
+                messageElement.innerText = message;
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            function askQuestion() {
+                if (AIMODE == 0) {
+                    if (currentQuestionIndex < questions.length) {
+                        const question = questions[currentQuestionIndex];
+                        currentQuestion = question;
+                        displayMessage(question.text, 'bot');
+                        if (question.options) {
+                            displayOptions(question.options);
+                            inputContainer.style.display = 'none';
+                        } else {
+                            optionsContainer.innerHTML = '';
+                            inputContainer.style.display = 'flex';
+                        }
+                    } else {
+                        displayMessage('Thank you for answering the questions! We are in process of generating your MFE... Please Wait', 'bot');
+                        inputContainer.style.display = 'none';
+                        optionsContainer.style.display = 'none';
+                    }
+                } else {
+                    optionsContainer.innerHTML = '';
+                    inputContainer.style.display = 'flex';
+                }
+            }
+
+            function displayOptions(options) {
+                optionsContainer.innerHTML = ''; // Clear previous options
+                options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.className = 'option-button';
+                    button.innerText = option;
+                    if (option == "Preview") {
+                        button.addEventListener('click', () => previewScreen());
+                    }
+                    else if (option == 'Chat with BOT') {
+                        button.addEventListener('click', () => talkWithBOT());
+                    }
+                    else {
+                        button.addEventListener('click', () => handleOptionClick(option));
+                    }
+                    optionsContainer.appendChild(button);
+                });
+                optionsContainer.style.display = 'flex';
+            }
+
+            function handleOptionClick(option) {
+                displayMessage(option, 'user');
+                callApi(option);
+                currentQuestionIndex++;
+                askQuestion();
+            }
+
+            function handleUserInput() {
+                const answer = userInput.value.trim();
+                displayMessage(answer, 'user');
+                if (AIMODE == 0) {
+                    if (answer) {
+                        callApi(answer);
+                        userInput.value = '';
+                        currentQuestionIndex++;
+                        askQuestion();
+                    }
+                } else {
+                    userInput.value = '';
+                    callBOTAndGetReponse(answer);
+                    //displayMessage(res, 'bot');
+                }
+            }
+
+            function callApi(answer) {
+
+                var obj = {
+                    id: currentQuestion.id,
+                    question: currentQuestion.text,
+                    answer: answer
+                };
+                answers.push(obj);
+
+                if (currentQuestionIndex < (questions.length - 1)) {
+                    return;
+                }
+
+
+                // CALL API
+
+                //displayMessage('Will call api here!!!', 'bot');
+                fetch('http://localhost:3000/questions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "appName": answers.filter(a => a.id == 'APPNAME')[0].answer,
+                        "style": answers.filter(a => a.id == 'CSS')[0].answer,//  answers[2].answer.toLowerCase(),
+                        "routing": answers.filter(a => a.id == 'ROUTE')[0].answer,//answers[3].answer.toLowerCase(),
+                        "framework": answers.filter(a => a.id == 'FRAME')[0].answer,//answers[4].answer.toLowerCase(),
+                        "componentToCreate": answers.filter(a => a.id == 'COMP')[0].answer,//answers[5].answer.toLowerCase()
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        displayMessage(`API Response: ${data.message}`, 'bot');
+                    })
+                    .catch(error => {
+                        //displayMessage(`API Error: ${error.message}`, 'bot');
+                        res = "System busy. Please wait and try again shortly.";
+                        displayMessage(res, 'bot');
+                    });
+                //fetch('https://api.example.com/data', {
+                //    method: 'POST',
+                //    headers: {
+                //        'Content-Type': 'application/json'
+                //    },
+                //    body: JSON.stringify({ answer })
+                //})
+                //    .then(response => response.json())
+                //    .then(data => {
+                //        displayMessage(`API Response: ${data.message}`, 'bot');
+                //    })
+                //    .catch(error => {
+                //        displayMessage(`API Error: ${error.message}`, 'bot');
+                //    });
+            }
+
+            sendButton.addEventListener('click', handleUserInput);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleUserInput();
+                }
+            });
+
+
+            function previewScreen() {
+
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar.classList.contains('show')) {
+                    sidebar.classList.remove('show');
+                    setTimeout(() => {
+                        sidebar.style.display = 'none';
+                    }, 300); // Match the CSS transition duration
+                } else {
+                    sidebar.style.display = 'block';
+                    setTimeout(() => {
+                        sidebar.classList.add('show');
+                    }, 10); // Small delay to ensure the display change takes effect
+                }
+
+
+                //currentQuestionIndex++;
+                //askQuestion();
+
+            }
+
+
+            function talkWithBOT() {
+                AIMODE = 1;
+                displayMessage("Welcome to BOT , feel free to ask any question", 'bot');
+                askQuestion();
+            }
+            function callBOTAndGetReponse(req) {
+
+                // call bot api
+                fetch('http://localhost:3000/askAI', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "question": req
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data, "-----------")
+                        displayMessage(data.res, 'bot');
+                        //res = data.message;
+                    })
+                    .catch(error => {
+                        res = "System busy. Please wait and try again shortly.";
+                        displayMessage(res, 'bot');
+                    });
+
+            }
+
+
+            //chatbotButton.addEventListener('click', () => {
+            //    if (chatContainer.style.display === 'flex') {
+            //        chatContainer.style.display = 'none';
+            //        //chatbotButton.style.display = 'block';
+            //    } else {
+            //        chatContainer.style.display = 'flex';
+            //        setTimeout(askQuestion, 500);
+            //        //askQuestion();
+
+            //        //chatbotButton.style.display = 'none';
+            //        //showIntro();
+            //    }
+            //});
+
+            //document.getElementById('toggleButton').addEventListener('click', function () {
+            //    const sidebar = document.getElementById('sidebar');
+            //    if (sidebar.classList.contains('show')) {
+            //        sidebar.classList.remove('show');
+            //        setTimeout(() => {
+            //            sidebar.style.display = 'none';
+            //        }, 300); // Match the CSS transition duration
+            //    } else {
+            //        sidebar.style.display = 'block';
+            //        setTimeout(() => {
+            //            sidebar.classList.add('show');
+            //        }, 10); // Small delay to ensure the display change takes effect
+            //    }
+            //});
+
+            askQuestion();
+        });
+    </script>
+</body>
+</html>

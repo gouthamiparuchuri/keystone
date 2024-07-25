@@ -1,0 +1,36 @@
+{
+    "app":{
+        "application":{
+            "ServerApp":{
+                "folder":[
+                    {
+                        "name":"Controllers",
+                        "files":[
+                            {"name":"HomeController.cs", "path": "assets/serverApp/default/Controllers/HomeController.cs"}
+                        ]
+                    },
+                    {
+                        "name":"Models",
+                        "files":[
+                            {"name":"AppModel.cs", "path": "assets/serverApp/default/Models/AppModel.cs"}
+                        ]
+                    }
+                ],
+                "files":[
+                    {"name":"Startup.cs", "path": "assets/serverApp/default/Startup.cs"},
+                    {"name":"Program.cs", "path": "assets/serverApp/default/Program.cs"},
+                    {"name":"App.cs", "path": "assets/serverApp/default/App.cs"},
+                    {"name":"Apprules.cs", "path": "assets/serverApp/default/Apprules.cs"}
+                ]
+            },
+            "files":[
+                {"name":"appsettings.ci1.json", "path": "assets/appsettings/appsettings.ci1.json"},
+                {"name":"appsettings.ci2.json", "path": "assets/appsettings/appsettings.ci2.json"},
+                {"name":"appsettings.dev7.json", "path": "assets/appsettings/appsettings.dev7.json"}
+            ]
+        },
+        "files":[
+            {"name":"a11y-cicd-config-ci1.js", "path":"assets/a11y-cicd-config-ci1.js"}
+        ]        
+    }
+}

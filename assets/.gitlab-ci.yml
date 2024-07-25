@@ -1,0 +1,1152 @@
+include:
+- project: devops/job-templates
+  ref: v2.0.0
+  file: artifactory-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: dotnet-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: change-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: cicd-stages.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: test-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: security-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: deploy-jobs.yml
+- project: devops/job-templates
+  ref: v2.0.0
+  file: javascript-jobs.yml
+
+
+variables:
+  BUILD_CSPROJ: Dell.MyAccount.Orders/Dell.MyAccount.Orders.csproj
+  BUILD_CONFIGURATION: Release
+  APP_NAME_CI1: ma-orders-ci1
+  APP_NAME_CI2: ma-orders-ci2
+  APP_NAME_G1: ma-orders-g1
+  APP_NAME_G2: ma-orders-g2
+  APP_NAME_G3: ma-orders-g3
+  APP_NAME_G4: ma-orders-g4
+  APP_NAME_STAGE: ma-orders-stage
+  TEMP_APP_NAME: ma-orders-prod-next
+  APP_NAME: ma-orders-prod
+  BROWN_APP_NAME: ma-orders-prod-previous
+  UNIT_TEST_PROJ: Tests/Dell.MyAccount.Orders.UnitTests/Dell.MyAccount.Orders.UnitTests.csproj
+  TARGET: $CI_PROJECT_DIR/target/
+  PCF_MF_FILES: pcf-configs
+  DOMAIN_NP: r2.pcf.dell.com
+  DOMAIN_NP_SECONDARY: pnp6.pcf.dell.com
+  DOMAIN_SECONDARY: s2.pcf.dell.com
+  DOMAIN_PRIMARY: p2.pcf.dell.com
+  GTM_DOMAIN: g2p.pcf.dell.com
+  NUGET_RESTORE_SOURCE: https://dcsartifacts.dell.com/artifactory/api/nuget/nuget --source https://dcsartifacts.dell.com/artifactory/api/nuget/csb-nuget
+
+compile-package:
+  extends: .compile-package-dotnetcore
+  allow_failure: false
+  before_script:
+  - echo "Starting the Dotnet restore build and publish"
+  stage: build
+  except:
+    - tags
+
+unit-test:
+  extends: .unit-test-dotnetcore
+  allow_failure: false
+  before_script:
+  - echo "Starting the Dotnet restore build and publish"
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+  stage: verify-build
+
+unit-test-front-end:
+  image: $SELENIUM_JDK_NODE_IMG
+  stage: verify-build
+  allow_failure: false
+  before_script:
+  - echo $TARGET
+  script:
+  - cd Dell.MyAccount.Orders/ClientApps/default
+  - echo "==> Running npm install ..."
+  - npm install
+  - echo "==> Running npm test ..."
+  - npm run test-ci
+  - echo "Completed unit-tests successfully"
+  artifacts:
+    expire_in: 2 h
+    paths:
+    - $TARGET
+    - node_modules/
+  tags:
+  - linux
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+.sast:checkmarx:
+  #extends: .sast:checkmarx
+  when: manual
+  allow_failure: true
+  variables:
+    CX_SERVER: https://cx.dell.com
+    CX_PROJECT_NAME: CxServer\PAS\Application\Unified Account Experience\PROD\$CI_PROJECT_NAME
+    CX_FOLDER_PATH: $CI_PROJECT_DIR
+    CX_OPTIONS: -comment $CI_PROJECT_ID -LocationPathExclude "*Services"
+    VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+
+.blackduck-scan:
+  stage: verify-build
+  image: $DOTNET_SDK_IMAGE
+  when: manual
+  allow_failure: true
+  variables:
+    SCM_SCAN_TYPE: nuget
+    SCM_PROJECT_NAME: MyAccount_orders
+    SCM_PROJECT_VERSION: Dev_Code_orders
+    SCM_PATH: $CI_PROJECT_DIR
+    BLACKDUCK_SKIP_PHONE_HOME: 'true'
+    BLACKDUCK_TOKEN: YWFjN2RjNjUtOWQ4Zi00NTYxLWFjYjUtNDcyYTI1MDAwYjE2OjMyODhmZjVmLWE2MjQtNDNlOC05MGQwLTNkNjgyZmJiNWFiNg==
+  script:
+  - echo "Required variable- SCM_PATH ==> $SCM_PATH"
+  - scmctl $BLACKDUCK_TOKEN $SCM_SCAN_TYPE $SCM_PROJECT_NAME $SCM_PROJECT_VERSION $SCM_PATH --additional-args=--detect.excluded.detector.types=PIP+--detect.tools=DETECTOR+--detect.accuracy.required=NONE
+  tags:
+  - linux
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+code-quality:
+  extends: .code-quality-dotnetcore
+  stage: verify-build
+  allow_failure: false
+  variables:
+    SONAR_EXCLUSIONS: '**/ClientApps/**, **/Models/**, **/Configuration/**, **/Startup.cs, **/Utils.cs, **/Program.cs, **/*Request.cs, **/*Response.cs, **/*DataModel.cs, **/AppRules.cs'
+    SONAR_HOST: https://sonarqube.dell.com
+    SONAR_PROJECT_NAME: ma-orders
+    SONAR_LOGIN_TOKEN: a25fc2fd170cc02fb0a3fb1eea1d93ce7fb53d1e
+    UNIT_TEST_DIR: Tests/Dell.MyAccount.Orders.UnitTests
+    COVERAGE_FILE: Tests/Dell.MyAccount.Orders.UnitTests/coverage.opencover.xml
+  script:
+  - dotnet restore --source $NUGET_RESTORE_SOURCE
+  - dotnet sonarscanner begin /k:"$SONAR_PROJECT_NAME" /n:"$SONAR_PROJECT_NAME" /v:"$CI_JOB_ID" /d:sonar.language="cs" /d:sonar.cs.opencover.reportsPaths=$COVERAGE_FILE /d:sonar.host.url="$SONAR_HOST" /d:sonar.login="$SONAR_LOGIN_TOKEN" /d:sonar.exclusions="$SONAR_EXCLUSIONS"
+  - dotnet build --source https://dcsartifacts.dell.com/artifactory/api/nuget/nuget
+  - dotnet test -c Debug $UNIT_TEST_DIR --no-restore /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+  - dotnet sonarscanner end /d:sonar.login="$SONAR_LOGIN_TOKEN"
+  - echo "Validating the status"
+  - sleep 20
+  - curl --user $SONAR_LOGIN_TOKEN':' https://sonarqube.dell.com/api/qualitygates/project_status?projectKey=$SONAR_PROJECT_NAME
+  - if [ $(curl --user $SONAR_LOGIN_TOKEN':' https://sonarqube.dell.com/api/qualitygates/project_status?projectKey=$SONAR_PROJECT_NAME | jq -r '.projectStatus.status') == "ERROR" ]; then echo "Sonar Scan is failing in Quality Gates" ; exit 1; fi
+  artifacts:
+    when: always
+    expire_in: 1 day
+    paths:
+    - $COVERAGE_FILE
+  tags:
+  - linux
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+
+code-quality-client:
+  extends: .code-quality-js
+  allow_failure: false
+  variables:
+    VAULT_ADDR: $NP_VAULT_ADDR
+    TEST_CMD: "npm run test-ci"
+    SONAR_PROJECT_NAME: ma-orders-client
+    SONAR_EXCLUSIONS: '**/*.xml, **/*.xlsm, **/*.xsd, **/*.css, **/*.less,**/*.spec.ts,  **/*.scss,**/*.html,**/*.js, **/webpack/**, **/e2e/**,**/assets/**, **/environments/**, **/src/app/app.module.ts, **/src/app/app.toolbox.ts, **src/app/components/carrier-tracking-package/carrier-tracking-package.component.ts, **/src/app/components/recent-order-carrier-tracking-packages/recent-order-carrier-tracking-packages.component.ts, **/src/app/components/order-item/order-item.component.ts, **/src/app/components/missing-orders/missing-orders.component.ts, **/src/app/components/order/order.component.ts, **/src/app/components/carrier-tracking-packages/carrier-tracking-packages.component.ts, **/src/app/common/order-status-helper.ts, **/src/app/components/recent-order/recent-order.component.ts, **/main.ts, **/test.ts, **/app/app.module.ts, **/app/app.toolbox.ts, **/app/common/mock-angular-info.ts'
+    COVERAGE_FILE: 'coverage/lcov-report/lcov.info'
+    NPM_INSTALL_CMD: "npm install"
+  before_script:
+    - cd Dell.MyAccount.Orders/ClientApps/default
+    #- export VAULT_ADDR=$NP_VAULT_ADDR
+    #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+    #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+    #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+  stage: verify-build
+  tags:
+  - linux
+
+
+xray-scans:
+  extends: .xray-scan
+  allow_failure: false
+  variables:
+    TARGET: target
+    UPLOAD_PATH: $UPLOAD_PATH_XRAY
+    ARTIFACT_SECRET_PATH: kv/ARTIFACTORY
+  before_script:
+  - echo $ARTIFACT_PATH
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: never
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+  stage: verify-build
+
+malware-scan:
+  stage: verify-build
+  allow_failure: false
+  extends: .malware-scan
+
+
+scst-scan:
+  stage: verify-build
+  image: $SECURITY_TOOLS_IMAGE
+  allow_failure: false
+  rules:
+  - if: $CI_COMMIT_BRANCH
+  tags:
+  - linux
+  script:
+  - curl -s $VERSION_MSG > version-msg.txt; cat version-msg.txt
+  - echo "$VAULT_ADDR;$VAULT_NAMESPACE;$VAULT_JWT_PATH;$VAULT_JWT_ROLE"
+  - scstctl --version && scstctl ${PROJECT_PATH} || echo -e "SCST scan utility missing in the ${IMAGE_TAG}"
+  variables:
+    PROJECT_PATH: $CI_PROJECT_DIR
+
+sca-scan:
+  stage: verify-build
+  image: $IMAGE_TAG
+  allow_failure: false
+  rules:
+  - if: $CI_COMMIT_BRANCH
+    exists:
+    - '**/*.sln'
+    variables:
+      IMAGE_TAG: $DOTNET_SDK_IMAGE
+  - if: $CI_COMMIT_BRANCH
+    exists:
+    - '**/pom.xml'
+    - '**/build.gradle'
+    variables:
+      IMAGE_TAG: $JAVA_JDK_IMAGE
+  - if: $CI_COMMIT_BRANCH
+    variables:
+      IMAGE_TAG: $SECURITY_TOOLS_IMAGE
+      BUILD_CSPROJ: Dell.MyAccount.Orders/Dell.MyAccount.Orders.csproj
+      NUGET_RESTORE_SOURCE: $NUGET_RESTORE_SOURCE
+      runtimeFrameworkVersion: "6.0.0"
+  tags:
+  - linux
+  before_script:
+  - dotnet restore --source $NUGET_RESTORE_SOURCE
+  script:
+  - curl -s $VERSION_MSG > version-msg.txt; cat version-msg.txt
+  - echo "$VAULT_ADDR;$VAULT_NAMESPACE;$VAULT_JWT_PATH;$VAULT_JWT_ROLE"
+  - scactl --version && scactl ${PROJECT_PATH} || echo -e "SCA scan utility missing in the ${IMAGE_TAG}"
+  variables:
+    PROJECT_PATH: $CI_PROJECT_DIR
+
+
+
+deploy-ci1:
+  extends: .deploy-pcf-np
+  environment:
+    deployment_tier: testing
+    name: CI1
+  variables:
+    APP_NAME: $APP_NAME_CI1
+    PCF_MF_FILE: pcf-configs/manifest.ci1.yml
+    VAULT_PCF_SPACE: kv/PCF/ma-ci1
+    VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+    allow_failure: true
+    when: manual
+  stage: deploy
+
+deploy-ci2:
+  extends: .deploy-pcf-np
+  environment:
+    deployment_tier: testing
+    name: CI2
+  variables:
+    APP_NAME: $APP_NAME_CI2
+    PCF_MF_FILE: pcf-configs/manifest.ci2.yml
+    VAULT_PCF_SPACE: kv/PCF/ma-ci2
+    VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+    allow_failure: false
+    #when: manual
+  stage: deploy
+
+deploy-g2:
+  extends: .deploy-pcf-np
+  environment:
+    deployment_tier: testing
+    name: GE2
+  variables:
+    APP_NAME: $APP_NAME_G2
+    PCF_MF_FILE: pcf-configs/manifest.g2.yml
+    VAULT_PCF_SPACE: kv/PCF/g2
+    VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+    when: manual
+    allow_failure: false
+  stage: deploy
+
+deploy-g4:
+  extends: .deploy-pcf-np
+  environment:
+    deployment_tier: testing
+    name: GE4
+  variables:
+    APP_NAME: $APP_NAME_G4
+    PCF_MF_FILE: pcf-configs/manifest.g4.yml
+    VAULT_PCF_SPACE: kv/PCF/g4
+    VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+    when: manual
+    allow_failure: false
+  stage: deploy
+
+deploy-stage:
+  # extends: .deploy-pcf-np
+  extends: .deploy-pcf-np-dynatrace
+  environment:
+    deployment_tier: testing
+    name: STAGE
+  variables:
+    APP_NAME: $APP_NAME_STAGE
+    PCF_MF_FILE: pcf-configs/manifest.stage.yml
+    VAULT_PCF_SPACE: kv/PCF/ma-stage
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+    allow_failure: false
+  stage: deploy
+
+plx-job-ci1:
+  extends:
+    - .plx-integration
+  variables:
+    APP_NAME: $APP_NAME_CI1
+    ENV: CI1
+    VAULT_PCF_SPACE: kv/PCF/ma-ci1
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([cC]i).*$/
+
+plx-job-ci2:
+  extends:
+    - .plx-integration
+  variables:
+    APP_NAME: $APP_NAME_CI2
+    ENV: CI2
+    VAULT_PCF_SPACE: kv/PCF/ma-ci2
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([cC]i).*$/  
+
+plx-job-g2:
+  extends:
+    - .plx-integration
+  variables:
+    APP_NAME: $APP_NAME_G2
+    ENV: G2
+    VAULT_PCF_SPACE: kv/PCF/g2
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+
+plx-job-g4:
+  extends:
+    - .plx-integration
+  variables:
+    APP_NAME: $APP_NAME_G4
+    ENV: G4
+    VAULT_PCF_SPACE: kv/PCF/g4
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+
+plx-job-stage:
+  extends:
+    - .plx-integration
+  variables:
+    APP_NAME: $APP_NAME_STAGE
+    ENV: STAGE
+    VAULT_PCF_SPACE: kv/PCF/ma-stage
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+plx-job-prod-primary:
+  extends:
+    - .plx-integration-prod
+  environment:
+    name: PROD-PC1
+  variables:
+    APP_NAME: $APP_NAME
+    ENV: Prod
+    VAULT_PCF_SPACE: kv/PCF/ma-pc1
+  rules:
+  - if: $CI_COMMIT_TAG
+  when: manual
+
+plx-job-prod-secondary:
+  extends:
+    - .plx-integration-prod
+  environment:
+    name: PROD-PC1
+  variables:
+    APP_NAME: $APP_NAME
+    ENV: Prod
+    VAULT_PCF_SPACE: kv/PCF/ma-s3b
+  rules:
+  - if: $CI_COMMIT_TAG
+  when: manual  
+
+.deploy-g1:
+  extends: .deploy-pcf-np
+  environment:
+    name: deploy-g1
+  variables:
+    APP_NAME: $APP_NAME_G1
+    PCF_MF_FILE: pcf-configs/manifest.g1.yml
+    VAULT_PCF_SPACE: kv/PCF/g1
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+ #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+    when: manual
+    allow_failure: false
+  stage: deploy
+
+.deploy-g3:
+  extends: .deploy-pcf-np
+  environment:
+    name: deploy-g3
+  variables:
+    APP_NAME: $APP_NAME_G3
+    PCF_MF_FILE: pcf-configs/manifest.g3.yml
+    VAULT_PCF_SPACE: kv/PCF/g3
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+    when: manual
+    allow_failure: false
+  stage: deploy
+
+automation-test:
+  stage: validate-deploy
+  allow_failure: false
+  variables:
+    SOURCE_APP: ORDER
+    PORTAL_APP: Premier
+    PORTAL_COUNTRY: ''
+    BUILD_CSPROJ: Dell.Buyer.Own.Account.Test/Dell.Buyer.Own.Account.Test.csproj
+    BUILD_CONFIGURATION: Release
+    UNIT_TEST_PROJ: Dell.Buyer.Own.Account.Test/Dell.Buyer.Own.Account.Test.csproj
+    TARGET: $CI_PROJECT_DIR/target/
+    PCF_MF_FILES: ''
+  trigger:
+    project: buyer/buyown/my-account/tests/ma_automation_vanilla
+    branch: $AUTOMATION_TRIGGER_BRANCH
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+    when: manual
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+    when: manual
+
+validate-ci1:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-ci1
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_CI1 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_CI1.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  tags:
+  - linux
+
+.axe-core-accessibility-ci1:
+  image: $A11Y_CICD6_IMAGE
+  stage: validate-deploy
+  needs:
+  - deploy-ci1
+  allow_failure: false
+  tags:
+  - linux
+  variables:
+    AxeConfig: a11y-cicd-config-ci1.js
+    AxeProductConfig: a11y-cicd-product-config.json
+  before_script:
+  - 'echo "AXE_CORE_IMAGE: " $AXE_CORE_IMAGE'
+  - echo "-------Setup Proxy---------"
+  - export http_proxy=http://ServiceDCSGReadonly:Readonly%40123@proxy.us.dell.com:80
+  - export https_proxy=http://ServiceDCSGReadonly:Readonly%40123@proxy.us.dell.com:80
+  - export no_proxy=localhost,localhost.dell.com,*.pcf.dell.com,nexus.dell.com
+  script:
+  - export CI_MERGE_REQUEST_IID=$CI_PIPELINE_ID
+  - echo "-------Running Axe Core Scan (CI1) ---------"
+  - node $AxeScan "$AxeConfig" "$AxeProductConfig"
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+
+validate-ci2:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-ci2
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_CI2 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_CI2.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+  tags:
+  - linux
+
+.axe-core-accessibility-ci2:
+  image: $A11Y_CICD6_IMAGE
+  stage: validate-deploy
+  needs:
+  - deploy-ci2
+  allow_failure: false
+  tags:
+  - linux
+  variables:
+    AxeConfig: a11y-cicd-config-ci2.js
+    AxeProductConfig: a11y-cicd-product-config.json
+  before_script:
+  - 'echo "AXE_CORE_IMAGE: " $AXE_CORE_IMAGE'
+  - echo "-------Setup Proxy---------"
+  - export http_proxy=http://ServiceDCSGReadonly:Readonly%40123@proxy.us.dell.com:80
+  - export https_proxy=http://ServiceDCSGReadonly:Readonly%40123@proxy.us.dell.com:80
+  - export no_proxy=localhost,localhost.dell.com,*.pcf.dell.com,nexus.dell.com
+  script:
+  - export CI_MERGE_REQUEST_IID=$CI_PIPELINE_ID
+  - echo "-------Running Axe Core Scan (CI2) ---------"
+  - node $AxeScan "$AxeConfig" "$AxeProductConfig"
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+
+validate-g2:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-g2
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G2 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G2.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  tags:
+  - linux
+
+validate-g4:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-g4
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G4 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G4.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  tags:
+  - linux
+
+validate-stage:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  dependencies:
+  - deploy-stage
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_STAGE "Domain:" $DOMAIN_NP
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_STAGE.$DOMAIN_NP/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+    allow_failure: false
+  tags:
+  - linux
+
+dynamic-scan-ci1:
+  extends: .dast
+  allow_failure: false
+  stage: validate-deploy
+  needs:
+  - deploy-ci1
+  variables:
+    DAST_FOLDER_ITEM_ID: '8179'
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+
+dynamic-scan-ci2:
+  extends: .dast
+  allow_failure: false
+  stage: validate-deploy
+  needs:
+  - deploy-ci2
+  variables:
+    DAST_FOLDER_ITEM_ID: '8179'
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([fF]eature|[cC]i).*$/
+
+dynamic-scan-g2:
+  extends: .dast
+  allow_failure: false
+  stage: validate-deploy
+  needs:
+  - deploy-g2
+  variables:
+    DAST_FOLDER_ITEM_ID: '8179'
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+
+dynamic-scan-g4:
+  extends: .dast
+  allow_failure: false
+  stage: validate-deploy
+  needs:
+  - deploy-g4
+  variables:
+    DAST_FOLDER_ITEM_ID: '8179'
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+
+dynamic-scan:
+  extends: .dast
+  allow_failure: false
+  stage: validate-deploy
+  needs:
+  - deploy-stage
+  variables:
+    DAST_FOLDER_ITEM_ID: '8179'
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+
+.validate-g1:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-g1
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G1 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G1.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  tags:
+  - linux
+
+.validate-g3:
+  image: $DEBIAN_IMG
+  stage: validate-deploy
+  allow_failure: false
+  needs:
+  - deploy-g3
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G3 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G3.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([Mm]aster|[Mm]ain).*$/
+  tags:
+  - linux
+
+publish-package:
+  extends: .artifactory-upload
+  variables:
+    TARGET: target
+    UPLOAD_PATH: $UPLOAD_PATH_GENERIC_ARTIFACT
+    ARTIFACT_SECRET_PATH: kv/ARTIFACTORY
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_BRANCH =~ /^([rR]elease).*/
+  stage: publish-artifact
+
+# validate-deployment-env-pcf:
+#   extends: .validate-deployment-env-pcf
+#   variables:
+#     DEPLOY_JOBS: deploy-prod-primary,deploy-prod-secondary
+#   rules:
+#   - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "pipeline"
+#   stage: prerfc-validate
+
+create-rfc:
+  extends: .create-rfc-standard
+  environment:
+    name: rfc
+  rules:
+  - if: $CI_COMMIT_TAG
+  script:
+  - echo $SNOW_CHANGE_JSON
+  - snowctl create change standard-change.json --duration=5,m
+  - snowctl add note "Change Request created by GitLab Job $CI_JOB_URL" --change
+  stage: rfc-submit
+
+retrieve-artifact:
+  extends: .retrieve-artifact
+  environment:
+    name: retrive-prod
+  variables:
+    TARGET: target
+    UPLOAD_PATH: $UPLOAD_PATH_GENERIC_ARTIFACT
+    ARTIFACT_SECRET_PATH: kv/ARTIFACTORY
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_TAG
+    allow_failure: false
+  stage: retrieve-artifact
+
+# validate-deployment-env-breakglass-pcf:
+#   extends: .validate-deployment-env-breakglass-pcf
+#   variables:
+#     DEPLOY_JOBS: deploy-prod-primary,deploy-prod-secondary
+#   rules:
+#   - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "pipeline"
+#   stage: predeploy-prod
+
+deploy-prod-primary:
+  # extends: .deploy-pcf-prod
+  extends: .deploy-pcf-prod
+  rules:
+  - if: $CI_COMMIT_TAG
+  environment:
+    deployment_tier: production
+    name: PROD-PC1
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-pc1
+    TARGET: target
+    PCF_MF_FILE: pcf-configs/manifest.prod-pc1.yml
+    DOMAIN: $DOMAIN_PRIMARY
+  before_script:
+  - echo "App Name $APP_NAME"
+  stage: deploy-prod
+
+deploy-prod-secondary:
+  # extends: .deploy-pcf-prod
+  extends: .deploy-pcf-prod
+  rules:
+  - if: $CI_COMMIT_TAG
+  environment:
+    deployment_tier: production
+    name: PROD-S3B
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-s3b
+    TARGET: target
+    PCF_MF_FILE: pcf-configs/manifest.prod-s3b.yml
+    DOMAIN: $DOMAIN_SECONDARY
+  before_script:
+  - echo "App Name $APP_NAME"
+  stage: deploy-prod
+
+validate-deploy-prod-primary:
+  extends: .uat
+  rules:
+  - if: $CI_COMMIT_TAG
+  allow_failure: false
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME "Domain:" $DOMAIN_PRIMARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$TEMP_APP_NAME.$DOMAIN_PRIMARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  stage: validate-prod
+
+validate-deploy-prod-secondary:
+  extends: .uat
+  rules:
+  - if: $CI_COMMIT_TAG
+  allow_failure: false
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME "Domain:" $DOMAIN_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$TEMP_APP_NAME.$DOMAIN_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  stage: validate-prod
+
+.uat:
+  image: $CF_CLI_PLUGINS_IMG
+  stage: validate-prod
+  script:
+  - echo -e "\x1b[36;1mRunning \x1b[35;1m[$CI_JOB_STAGE]\x1b[36;1m stage with $CI_JOB_IMAGE ...\e[0m"
+  - echo "uat"
+  tags:
+  - linux
+
+switch-route-primary:
+  extends: .switch-route-pcf-rollback
+  when: manual
+  environment:
+    name: switch-route-pc1
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-pc1
+    DOMAIN: $DOMAIN_PRIMARY
+    SPACE: prod
+  allow_failure: false
+  stage: go-live
+  only:
+    - tags
+
+switch-route-secondary:
+  extends: .switch-route-pcf-rollback
+  when: manual
+  environment:
+    name: switch-route-s3b
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-s3b
+    DOMAIN: $DOMAIN_SECONDARY
+    SPACE: prod
+  allow_failure: false
+  stage: go-live
+  only:
+    - tags
+
+update-rfc-deploy:
+  extends: .update-rfc-deploy
+  environment:
+    name: rfc
+  rules:
+  - if: $CI_COMMIT_TAG
+  stage: rfc-update
+
+validate-prod-primary:
+  image: $DEBIAN_IMG
+  rules:
+  - if: $CI_COMMIT_TAG
+  stage: validate-live
+  allow_failure: false
+  dependencies:
+  - switch-route-primary
+  - switch-route-secondary
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME "Domain:" $DOMAIN_PRIMARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME.$DOMAIN_PRIMARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  tags:
+  - linux
+
+validate-prod-secondary:
+  image: $DEBIAN_IMG
+  rules:
+  - if: $CI_COMMIT_TAG
+  stage: validate-live
+  allow_failure: false
+  dependencies:
+  - switch-route-primary
+  - switch-route-secondary
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME "Domain:" $DOMAIN_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME.$DOMAIN_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  tags:
+  - linux
+
+health-check-test:
+  stage: validate-live
+  rules:
+  - if: $CI_COMMIT_TAG
+  allow_failure: false
+  dependencies:
+  - switch-route-primary
+  - switch-route-secondary
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME "Domain:" $GTM_DOMAIN
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME.$GTM_DOMAIN/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  tags:
+  - linux
+
+update-rfc-validate:
+  extends: .update-rfc-validate
+  environment:
+    name: rfc
+  rules:
+  - if: $CI_COMMIT_TAG
+  stage: rfc-close
+
+rollback-primary:
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-pc1
+    DOMAIN: $DOMAIN_PRIMARY
+    SPACE: prod
+  when: manual
+  extends: .rollback-pcf
+  allow_failure: true
+  stage: post-deployment
+  only:
+    - tags
+
+rollback-secondary:
+  variables:
+    VAULT_PCF_SPACE: kv/PCF/ma-s3b
+    DOMAIN: $DOMAIN_SECONDARY
+    SPACE: prod
+  when: manual
+  extends: .rollback-pcf
+  allow_failure: true
+  stage: post-deployment
+  only:
+    - tags
+
+code-retrofit-deploy-g1:
+  extends: .deploy-pcf-np
+  stage: code-retrofit-deploy
+  environment:
+    name: code-retrofit-deploy-g1
+  variables:
+    APP_NAME: $APP_NAME_G1
+    PCF_MF_FILE: pcf-configs/manifest.g1.yml
+    VAULT_PCF_SPACE: kv/PCF/g1
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: manual
+    allow_failure: true
+
+code-retrofit-deploy-g2:
+  extends: .deploy-pcf-np
+  stage: code-retrofit-deploy
+  environment:
+    name: code-retrofit-deploy-g2
+  variables:
+    APP_NAME: $APP_NAME_G2
+    PCF_MF_FILE: pcf-configs/manifest.g2.yml
+    VAULT_PCF_SPACE: kv/PCF/g2
+   # VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: manual
+    allow_failure: true
+
+code-retrofit-deploy-g3:
+  extends: .deploy-pcf-np
+  stage: code-retrofit-deploy
+  environment:
+    name: code-retrofit-deploy-g3
+  variables:
+    APP_NAME: $APP_NAME_G3
+    PCF_MF_FILE: pcf-configs/manifest.g3.yml
+    VAULT_PCF_SPACE: kv/PCF/g3
+   # VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: manual
+    allow_failure: true
+
+code-retrofit-deploy-g4:
+  extends: .deploy-pcf-np
+  stage: code-retrofit-deploy
+  environment:
+    name: code-retrofit-deploy-g4
+  variables:
+    APP_NAME: $APP_NAME_G4
+    PCF_MF_FILE: pcf-configs/manifest.g4.yml
+    VAULT_PCF_SPACE: kv/PCF/g4
+    #VAULT_ADDR: $NP_VAULT_ADDR
+  #before_script:
+  #- export VAULT_ADDR=$NP_VAULT_ADDR
+  #- export VAULT_JWT_ROLE=$VAULT_NP_JWT_ROLE
+  #- export VAULT_JWT_PATH=$VAULT_NP_JWT_PATH
+  #- export VAULT_NAMESPACE=$VAULT_NP_NAMESPACE
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: manual
+    allow_failure: true
+
+code-retrofit-validate-g1:
+  image: $DEBIAN_IMG
+  stage: code-retrofit-validate
+  needs:
+  - code-retrofit-deploy-g1
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G1 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G1.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_TAG
+  tags:
+  - linux
+
+code-retrofit-validate-g2:
+  image: $DEBIAN_IMG
+  stage: code-retrofit-validate
+  needs:
+  - code-retrofit-deploy-g2
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G2 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G2.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_TAG
+  tags:
+  - linux
+
+code-retrofit-validate-g3:
+  image: $DEBIAN_IMG
+  stage: code-retrofit-validate
+  needs:
+  - code-retrofit-deploy-g3
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G3 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G3.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_TAG
+  tags:
+  - linux
+
+code-retrofit-validate-g4:
+  image: $DEBIAN_IMG
+  stage: code-retrofit-validate
+  needs:
+  - code-retrofit-deploy-g4
+  script:
+  - echo "Validate Application health by calling actuator/health. A http status of 200 or 401 is accepted"
+  - echo "App name:" $APP_NAME_G4 "Domain:" $DOMAIN_NP_SECONDARY
+  - status=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_NAME_G4.$DOMAIN_NP_SECONDARY/api/app/ping)
+  - echo "Status " $status
+  - "if [ \"$status\" = 200 ] || [ \"$status\" = 401 ]\nthen\n  echo \"Application healthy\"\nelse\n  echo \"Application health error\"; exit 1;\nfi "
+  rules:
+  - if: $CI_COMMIT_TAG
+  tags:
+  - linux
+

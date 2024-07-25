@@ -1,0 +1,9 @@
+applications:
+- name: ma-orders-g1
+  buildpack: dicf_dotnet_core_buildpack_latest
+  disk_quota: 700MB
+  instances: 1
+  memory: 512MB
+  stack: cflinuxfs4  
+  env:
+    ASPNETCORE_ENVIRONMENT: g1
